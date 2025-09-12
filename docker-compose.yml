@@ -1,0 +1,18 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: rtmt-mysql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --skip-log-bin
+    environment:
+      TZ: Asia/Seoul
+      MYSQL_ROOT_PASSWORD: rootpw
+      MYSQL_DATABASE: rtmt
+      MYSQL_USER: rtmt
+      MYSQL_PASSWORD: rtmtpw
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./_data/mysql:/var/lib/mysql

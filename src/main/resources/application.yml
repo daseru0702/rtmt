@@ -1,0 +1,12 @@
+spring:
+  application.name: rtmt
+  r2dbc:
+    url: r2dbc:pool:mysql://localhost:3306/rtmt?useSSL=false&allowPublicKeyRetrieval=true
+    username: rtmt
+    password: rtmtpw
+  flyway:
+    url: jdbc:mysql://localhost:3306/rtmt?useSSL=false&allowPublicKeyRetrieval=true
+    user: rtmt
+    password: rtmtpw
+management.endpoints.web.exposure.include: health,info,metrics
+server.port: 8080
