@@ -16,3 +16,14 @@ services:
       - "3306:3306"
     volumes:
       - ./_data/mysql:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    container_name: rtmt-redis
+    command: [ "redis-server", "--appendonly", "yes" ]
+    environment:
+      TZ: Asia/Seoul
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./_data/redis:/data

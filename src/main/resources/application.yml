@@ -8,5 +8,9 @@ spring:
     url: jdbc:mysql://localhost:3306/rtmt?useSSL=false&allowPublicKeyRetrieval=true
     user: rtmt
     password: rtmtpw
+  data:
+    redis:
+      host: localhost
+      port: 6379
 management.endpoints.web.exposure.include: health,info,metrics
 server.port: 8080
