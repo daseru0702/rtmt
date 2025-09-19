@@ -15,4 +15,7 @@ class MatchController(private val queue: MatchQueue) {
     @PostMapping("/dequeue/{region}")
     fun dequeue(@PathVariable region: String): Mono<String> =
         queue.dequeue(region)
+
+    @GetMapping("/size/{region}")
+    fun size(@PathVariable region: String) = queue.size(region)
 }
