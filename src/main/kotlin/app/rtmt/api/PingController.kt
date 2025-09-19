@@ -26,7 +26,6 @@ class PingController(
 
     @PostMapping("/signup")
     suspend fun signup(@RequestBody req: SignUpReq): User {
-        // 데모 단계: 다음 단계에서 BCrypt로 교체
         val u = User(
             email = req.email,
             password_hash = pw.hash(req.password),
