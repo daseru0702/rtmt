@@ -1,5 +1,6 @@
 package app.rtmt.api
 
+import app.rtmt.security.PasswordEncoder
 import app.rtmt.user.User
 import app.rtmt.user.UserRepository
 import jakarta.validation.constraints.Email
@@ -11,7 +12,8 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/api")
 class PingController(
-    private val users: UserRepository
+    private val users: UserRepository,
+    private val pw: PasswordEncoder
 ) {
     @GetMapping("/ping")
     fun ping() = mapOf("ok" to true)
@@ -25,7 +27,11 @@ class PingController(
     @PostMapping("/signup")
     suspend fun signup(@RequestBody req: SignUpReq): User {
         // 데모 단계: 다음 단계에서 BCrypt로 교체
-        val u = User(email = req.email, password_hash = "SHA256:${req.password}", nick = req.nick)
+        val u = User(
+            email = req.email,
+            password_hash = pw.hash(req.password),
+            nick = req.nick
+        )
         return users.save(u)
     }
 }
