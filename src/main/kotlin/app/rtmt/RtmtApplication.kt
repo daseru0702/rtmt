@@ -1,4 +1,4 @@
-package app.rtmt.rtmt
+package app.rtmt
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
