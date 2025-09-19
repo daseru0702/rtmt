@@ -4,8 +4,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 
 @SpringBootApplication
-class RtrmApplication
+class RtmtApplication
 
 fun main(args: Array<String>) {
-    runApplication<RtrmApplication>(*args)
+    runApplication<RtmtApplication>(*args)
 }
