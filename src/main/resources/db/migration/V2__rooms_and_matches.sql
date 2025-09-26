@@ -1,0 +1,25 @@
+CREATE TABLE IF NOT EXISTS rooms (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    region VARCHAR(32) NOT NULL,
+    status ENUM('OPEN','PLAYING','CLOSED') NOT NULL DEFAULT 'OPEN',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+CREATE TABLE IF NOT EXISTS room_members (
+    room_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    role ENUM('P1','P2','OBSERVER') NOT NULL DEFAULT 'P1',
+    joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (room_id, user_id),
+    INDEX idx_room (room_id)
+    );
+
+CREATE TABLE IF NOT EXISTS matches (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    room_id BIGINT NOT NULL,
+    p1 BIGINT NOT NULL,
+    p2 BIGINT NOT NULL,winner BIGINT NULL,
+    started_at TIMESTAMP NULL,
+    ended_at   TIMESTAMP NULL,
+    FOREIGN KEY (room_id) REFERENCES rooms(id)
+    );
