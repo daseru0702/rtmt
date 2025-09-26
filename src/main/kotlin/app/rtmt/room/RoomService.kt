@@ -30,7 +30,6 @@ class RoomService(private val db: DatabaseClient) {
                 val ins3 = db.sql("INSERT INTO matches(room_id,p1,p2,started_at) VALUES(:rid,:p1,:p2,NOW())")
                     .bind("rid", roomId).bind("p1", p1).bind("p2", p2).fetch().rowsUpdated()
 
-                // Kotlin 키워드 충돌 → 백틱
                 reactor.core.publisher.Mono.`when`(ins1, ins2, ins3).thenReturn(roomId)
             }
 
