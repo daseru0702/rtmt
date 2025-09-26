@@ -33,6 +33,8 @@ dependencies {
     implementation("org.springframework:spring-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
+    implementation("io.asyncer:r2dbc-mysql:1.3.2")
+    implementation("io.r2dbc:r2dbc-pool:1.0.1.RELEASE")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
