@@ -20,21 +20,35 @@ repositories {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
-    implementation("org.springframework.boot:spring-boot-starter-validation")
+    // --- Web / Reactive ---
     implementation("org.springframework.boot:spring-boot-starter-webflux")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
-    implementation("org.flywaydb:flyway-core:11.7.2")
-    implementation("org.flywaydb:flyway-mysql:11.7.2")
-    implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
-    implementation("org.springframework:spring-jdbc")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+
+    // 선택: 보안 사용 시 (현재 permitAll이면 유지/제거 선택 가능)
     implementation("org.springframework.boot:spring-boot-starter-security")
+
+    // --- Redis (Reactive) ---
     implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
+
+    // --- R2DBC + MySQL 드라이버/풀 ---
+    implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
     implementation("io.asyncer:r2dbc-mysql:1.3.2")
     implementation("io.r2dbc:r2dbc-pool:1.0.1.RELEASE")
+
+    // --- Flyway (JDBC 경로로 마이그레이션) ---
+    implementation("org.flywaydb:flyway-core:11.7.2")
+    implementation("org.flywaydb:flyway-mysql:11.7.2")
+    // JDBC 드라이버는 런타임에만 필요
+    runtimeOnly("com.mysql:mysql-connector-j:8.4.0")
+
+    // --- Kotlin / Reactor ---
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
+
+    // --- Test ---
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.projectreactor:reactor-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
@@ -50,24 +64,4 @@ kotlin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-}
-
-dependencies {
-    // Web / Reactive
-    implementation("org.springframework.boot:spring-boot-starter-webflux")
-    implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
-
-    // R2DBC + MySQL (리액티브 드라이버 + 풀)
-    implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
-    implementation("io.asyncer:r2dbc-mysql:1.3.2")
-    implementation("io.r2dbc:r2dbc-pool:1.0.1.RELEASE")
-
-    // Flyway는 JDBC로 접속하므로 JDBC 드라이버 필요
-    runtimeOnly("com.mysql:mysql-connector-j:8.4.0")
-
-    // Kotlin 데이터클래스 JSON 직렬화
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
