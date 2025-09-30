@@ -29,8 +29,14 @@ class RoomService(private val db: DatabaseClient) {
                     .bind("rid", roomId).bind("uid", p2).fetch().rowsUpdated()
                 val ins3 = db.sql("INSERT INTO matches(room_id,p1,p2,started_at) VALUES(:rid,:p1,:p2,NOW())")
                     .bind("rid", roomId).bind("p1", p1).bind("p2", p2).fetch().rowsUpdated()
+                val initState = """
+                    {"board":{"rows":9,"cols":9},"pawns":{"P1":[4,0],"P2":[4,8]},"turn":"P1", 
+                    "walls":{"horizontal":[],"vertical":[]},"remainWalls":{"P1":10,"P2":10},"lastSeq":0}"""
+                    .trimIndent()
+                val ins4 = db.sql("UPDATE matches SET game_state=:st WHERE room_id=:rid")
+                    .bind("st", initState).bind("rid", roomId).fetch().rowsUpdated()
 
-                reactor.core.publisher.Mono.`when`(ins1, ins2, ins3).thenReturn(roomId)
+                reactor.core.publisher.Mono.`when`(ins1, ins2, ins3, ins4).thenReturn(roomId)
             }
 
     fun findRoom(roomId: Long): Mono<RoomView> =
