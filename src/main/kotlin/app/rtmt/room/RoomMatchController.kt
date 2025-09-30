@@ -1,13 +1,16 @@
-// src/main/kotlin/app/rtmt/room/MatchController.kt
 package app.rtmt.room
 
 import org.springframework.r2dbc.core.DatabaseClient
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Mono
 
 @RestController
 @RequestMapping("/api/matches")
-class MatchController(private val db: DatabaseClient) {
+class RoomMatchController(private val db: DatabaseClient) {
     data class EndReq(val winner: Long)
 
     @PostMapping("/{id}/end")
