@@ -1,6 +1,7 @@
 // src/main/kotlin/app/rtmt/ws/GameWs.kt
 package app.rtmt.ws
 
+import app.rtmt.metrics.GameMetrics
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.springframework.context.annotation.Bean
@@ -14,7 +15,8 @@ import reactor.core.publisher.Mono
 import java.util.concurrent.ConcurrentHashMap
 
 @Configuration
-class GameWsConfig(private val db: DatabaseClient) {
+class GameWsConfig(private val db: DatabaseClient,
+                   private val metrics: GameMetrics) {
 
     @Bean fun wsAdapter() = WebSocketHandlerAdapter()
     @Bean(name = ["gameWsMapping"])
@@ -41,30 +43,35 @@ class GameWsConfig(private val db: DatabaseClient) {
                 // (1) 파싱 실패
                 val msg = runCatching { mapper.readValue<MoveMsg>(txt) }.getOrNull()
                 if (msg == null) {
+                    metrics.incNack(NackReason.BAD_FORMAT.value)
                     return@flatMap Nacks.send(s, NackReason.BAD_FORMAT)
                 }
 
                 // (2) 보드 범위 체크
                 val to = msg.payload.to
                 if (to.size != 2 || to.any { it !in 0..8 }) {
+                    metrics.incNack(NackReason.OUT_OF_BOARD.value)
                     return@flatMap Nacks.send(s, NackReason.OUT_OF_BOARD)
                 }
 
                 // (3) 역할 조회
                 repo.findRole(rid, msg.userId).flatMap { role ->
                     if (role != "P1" && role != "P2") {
+                        metrics.incNack(NackReason.TURN_MISMATCH.value)
                         return@flatMap Nacks.send(s, NackReason.TURN_MISMATCH) // 역할 미존재도 턴 불일치로 간주
                     }
 
                     // (4) 낙관적 락 적용
                     repo.applyMove(rid, msg.seq, role, to[0], to[1]).flatMap { updated ->
                         if (updated == 0.toLong()) {
+                            metrics.incNack(NackReason.CONFLICT.value)
                             repo.loadState(rid).flatMap { js ->
                                 val expect = runCatching { mapper.readTree(js).path("lastSeq").asLong(0L) + 1 }.getOrNull()
                                 Nacks.send(s, NackReason.CONFLICT, expectSeq = expect)
                             }
                         } else {
                             // (성공) 최신 상태 브로드캐스트
+                            metrics.incApply()
                             repo.loadState(rid).flatMap { js ->
                                 val targets = rooms[rid]?.toList().orEmpty()
                                 Mono.`when`(targets.map { c ->

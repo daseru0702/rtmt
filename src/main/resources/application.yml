@@ -12,5 +12,5 @@ spring:
     redis:
       host: localhost
       port: 6379
-management.endpoints.web.exposure.include: health,info,metrics
+management.endpoints.web.exposure.include: health,info,metrics,prometheus
 server.port: 8080
