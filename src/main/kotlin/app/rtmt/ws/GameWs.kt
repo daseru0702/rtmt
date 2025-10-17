@@ -38,39 +38,38 @@ class GameWsConfig(private val db: DatabaseClient) {
         val receive = s.receive()
             .map { it.payloadAsText }
             .flatMap { txt ->
+                // (1) 파싱 실패
                 val msg = runCatching { mapper.readValue<MoveMsg>(txt) }.getOrNull()
                 if (msg == null) {
-                    return@flatMap s.send(Mono.just(s.textMessage("""{"t":"nack","reason":"bad_format"}"""))).then(Mono.empty())
+                    return@flatMap Nacks.send(s, NackReason.BAD_FORMAT)
                 }
 
+                // (2) 보드 범위 체크
                 val to = msg.payload.to
                 if (to.size != 2 || to.any { it !in 0..8 }) {
-                    val nack = mapper.writeValueAsString(Nack(reason = "out_of_board"))
-                    return@flatMap s.send(Mono.just(s.textMessage(nack))).then(Mono.empty())
+                    return@flatMap Nacks.send(s, NackReason.OUT_OF_BOARD)
                 }
 
-                // 아래부터는 중첩 flatMap을 사용하되, 바깥 flatMap에 대한 조기 리턴은 더 이상 쓰지 않음.
+                // (3) 역할 조회
                 repo.findRole(rid, msg.userId).flatMap { role ->
                     if (role != "P1" && role != "P2") {
-                        val nack = mapper.writeValueAsString(Nack(reason = "no_role"))
-                        return@flatMap s.send(Mono.just(s.textMessage(nack))).then(Mono.empty())
+                        return@flatMap Nacks.send(s, NackReason.TURN_MISMATCH) // 역할 미존재도 턴 불일치로 간주
                     }
 
+                    // (4) 낙관적 락 적용
                     repo.applyMove(rid, msg.seq, role, to[0], to[1]).flatMap { updated ->
                         if (updated == 0.toLong()) {
                             repo.loadState(rid).flatMap { js ->
                                 val expect = runCatching { mapper.readTree(js).path("lastSeq").asLong(0L) + 1 }.getOrNull()
-                                val nack = mapper.writeValueAsString(Nack(reason = "conflict_or_turn", expectSeq = expect))
-                                s.send(Mono.just(s.textMessage(nack))).then()
+                                Nacks.send(s, NackReason.CONFLICT, expectSeq = expect)
                             }
                         } else {
+                            // (성공) 최신 상태 브로드캐스트
                             repo.loadState(rid).flatMap { js ->
                                 val targets = rooms[rid]?.toList().orEmpty()
-                                Mono.`when`(
-                                    targets.map { c ->
-                                        c.send(Mono.just(c.textMessage("""{"t":"state","state":$js}"""))).then()
-                                    }
-                                )
+                                Mono.`when`(targets.map { c ->
+                                    c.send(Mono.just(c.textMessage("""{"t":"state","state":$js}"""))).then()
+                                })
                             }
                         }
                     }
