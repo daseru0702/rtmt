@@ -1,6 +1,8 @@
 // src/main/kotlin/app/rtmt/ws/GameWs.kt
 package app.rtmt.ws
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.r2dbc.core.DatabaseClient
@@ -15,66 +17,71 @@ import java.util.concurrent.ConcurrentHashMap
 class GameWsConfig(private val db: DatabaseClient) {
 
     @Bean fun wsAdapter() = WebSocketHandlerAdapter()
-
-    @Bean
-    fun gameMapping(): SimpleUrlHandlerMapping =
-        SimpleUrlHandlerMapping(mapOf("/ws/game" to gameHandler()), 1)
+    @Bean(name = ["gameWsMapping"])
+    fun gameWsMapping(): SimpleUrlHandlerMapping =
+        SimpleUrlHandlerMapping(mapOf("/ws/game" to handler()), 1)
 
     private val rooms = ConcurrentHashMap<Long, MutableSet<WebSocketSession>>()
+    private val mapper = jacksonObjectMapper()
+    private val repo = GameRepo(db)
 
     @Bean
-    fun gameHandler(): WebSocketHandler = WebSocketHandler { session ->
-        val rid = session.handshakeInfo.uri.query
-            ?.substringAfter("roomId=")?.toLongOrNull()
-            ?: return@WebSocketHandler session.close()
+    fun handler(): WebSocketHandler = WebSocketHandler { s ->
+        val rid = s.handshakeInfo.uri.query?.substringAfter("roomId=")?.toLongOrNull()
+            ?: return@WebSocketHandler s.close()
+        rooms.computeIfAbsent(rid) { mutableSetOf() }.add(s)
 
-        rooms.computeIfAbsent(rid) { mutableSetOf() }.add(session)
-
-        // 1) 접속 즉시 현재 상태 1회 송신
-        val sendCurrent = db.sql("SELECT game_state FROM matches WHERE room_id=:rid")
-            .bind("rid", rid)
-            .map { row, _ -> row.get("game_state", String::class.java) ?: "{}" }
-            .one()
+        val sendCurrent = repo.loadState(rid)
             .defaultIfEmpty("{}")
-            .flatMap { json ->
-                session.send(Mono.just(session.textMessage("""{"t":"state","state":$json}"""))).then()
-            }
+            .flatMap { js -> s.send(Mono.just(s.textMessage("""{"t":"state","state":$js}"""))).then() }
 
-        // 2) 수신 → lastSeq 증가(아주 단순한 더미 move), 전체 브로드캐스트
-        val receive = session.receive()
+        val receive = s.receive()
             .map { it.payloadAsText }
-            .flatMap {
-                db.sql("""
-                    UPDATE matches 
-                       SET game_state = JSON_SET(
-                              COALESCE(game_state, JSON_OBJECT()),
-                              '$.lastSeq',
-                              COALESCE(JSON_EXTRACT(game_state,'$.lastSeq'),0)+1
-                           )
-                    WHERE room_id=:rid
-                """.trimIndent())
-                    .bind("rid", rid)
-                    .fetch().rowsUpdated()
-                    .flatMap {
-                        db.sql("SELECT game_state FROM matches WHERE room_id=:rid")
-                            .bind("rid", rid)
-                            .map { r, _ -> r.get("game_state", String::class.java) ?: "{}" }
-                            .one()
+            .flatMap { txt ->
+                val msg = runCatching { mapper.readValue<MoveMsg>(txt) }.getOrNull()
+                if (msg == null) {
+                    return@flatMap s.send(Mono.just(s.textMessage("""{"t":"nack","reason":"bad_format"}"""))).then(Mono.empty())
+                }
+
+                val to = msg.payload.to
+                if (to.size != 2 || to.any { it !in 0..8 }) {
+                    val nack = mapper.writeValueAsString(Nack(reason = "out_of_board"))
+                    return@flatMap s.send(Mono.just(s.textMessage(nack))).then(Mono.empty())
+                }
+
+                // 아래부터는 중첩 flatMap을 사용하되, 바깥 flatMap에 대한 조기 리턴은 더 이상 쓰지 않음.
+                repo.findRole(rid, msg.userId).flatMap { role ->
+                    if (role != "P1" && role != "P2") {
+                        val nack = mapper.writeValueAsString(Nack(reason = "no_role"))
+                        return@flatMap s.send(Mono.just(s.textMessage(nack))).then(Mono.empty())
                     }
-                    .flatMap { newState ->
-                        val targets = rooms[rid]?.toList().orEmpty()
-                        Mono.`when`(
-                            targets.map { s ->
-                                s.send(Mono.just(s.textMessage("""{"t":"state","state":$newState}"""))).then()
+
+                    repo.applyMove(rid, msg.seq, role, to[0], to[1]).flatMap { updated ->
+                        if (updated == 0.toLong()) {
+                            repo.loadState(rid).flatMap { js ->
+                                val expect = runCatching { mapper.readTree(js).path("lastSeq").asLong(0L) + 1 }.getOrNull()
+                                val nack = mapper.writeValueAsString(Nack(reason = "conflict_or_turn", expectSeq = expect))
+                                s.send(Mono.just(s.textMessage(nack))).then()
                             }
-                        )
+                        } else {
+                            repo.loadState(rid).flatMap { js ->
+                                val targets = rooms[rid]?.toList().orEmpty()
+                                Mono.`when`(
+                                    targets.map { c ->
+                                        c.send(Mono.just(c.textMessage("""{"t":"state","state":$js}"""))).then()
+                                    }
+                                )
+                            }
+                        }
                     }
+                }
             }
             .then()
 
+
         sendCurrent.then(receive)
             .doFinally {
-                rooms[rid]?.remove(session)
+                rooms[rid]?.remove(s)
                 if (rooms[rid]?.isEmpty() == true) rooms.remove(rid)
             }
     }
