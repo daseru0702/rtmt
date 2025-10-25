@@ -27,3 +27,5 @@ data class Nack(
     val expectSeq:
     Long? = null
 )
+
+data class Ended(val t: String = "ended", val winner: Long)
