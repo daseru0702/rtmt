@@ -16,6 +16,16 @@ class GameRepo(private val db: DatabaseClient) {
             .bind("r", roomId)
             .map { r,_ -> r.get("game_state", String::class.java) ?: "{}" }
             .one()
+    fun endMatchByRoom(roomId: Long, winnerUserId: Long): Mono<Long?> =
+        db.sql("""
+            UPDATE matches 
+               SET winner = :winner, ended_at = NOW() 
+             WHERE room_id = :rid AND winner IS NULL
+        """.trimIndent())
+            .bind("winner", winnerUserId)
+            .bind("rid", roomId)
+            .fetch()
+            .rowsUpdated()
 
     /**
      * 낙관적 락으로 상태 갱신: lastSeq가 (seq-1)이고 turn이 role과 일치할 때만 갱신
