@@ -9,11 +9,15 @@ class GameMetrics(
     private val registry: MeterRegistry   // ← 프로퍼티로 보관
 ) {
     private val apply = registry.counter("move.apply.count")
+    private val ended = registry.counter("match.end.count")
 
     fun incApply() {
         apply.increment()
     }
 
+    fun incEnded() {
+        ended.increment()
+    }
     fun incNack(reason: String) {
         registry.counter("move.nack.count", "reason", reason).increment()
     }
