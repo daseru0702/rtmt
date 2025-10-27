@@ -70,13 +70,37 @@ class GameWsConfig(private val db: DatabaseClient,
                                 Nacks.send(s, NackReason.CONFLICT, expectSeq = expect)
                             }
                         } else {
-                            // (성공) 최신 상태 브로드캐스트
                             metrics.incApply()
+                            // 1) 최신 상태 로드
                             repo.loadState(rid).flatMap { js ->
                                 val targets = rooms[rid]?.toList().orEmpty()
-                                Mono.`when`(targets.map { c ->
-                                    c.send(Mono.just(c.textMessage("""{"t":"state","state":$js}"""))).then()
+
+                                // 2) 상태 브로드캐스트
+                                val stateMsg = """{"t":"state","state":$js}"""
+                                val fanout = Mono.`when`(targets.map { c ->
+                                    c.send(Mono.just(c.textMessage(stateMsg))).then()
                                 })
+
+                                // 3) 간이 승리 판정 (p1/p2 유저 id 가져오기)
+                                //    room_members에서 p1/p2를 들고 왔다면 그 값을 사용하고,
+                                //    없다면 (데모 기준) matches 테이블에서 p1/p2를 꺼내오는 함수 하나 추가해도 됨.
+                                //    여기서는 간단히 repo에 getPlayersByRoom을 추가했다고 가정.
+                                fanout.then(
+                                    repo.getPlayersByRoom(rid).flatMap { (p1Id, p2Id) ->
+                                        val win = GameLogic.checkWin(js, p1Id, p2Id)
+                                        if (win.winnerUserId == null) Mono.empty()
+                                        else {
+                                            // 4) DB 종료 마킹 (idempotent)
+                                            repo.endMatchByRoom(rid, win.winnerUserId).flatMap {
+                                                metrics.incEnded()
+                                                val endedJson = mapper.writeValueAsString(Ended(winner = win.winnerUserId))
+                                                Mono.`when`(targets.map { c ->
+                                                    c.send(Mono.just(c.textMessage(endedJson))).then()
+                                                })
+                                            }
+                                        }
+                                    }
+                                )
                             }
                         }
                     }

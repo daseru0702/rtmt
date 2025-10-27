@@ -48,4 +48,13 @@ class GameRepo(private val db: DatabaseClient) {
             .bind("rid", roomId).bind("seq", seq).bind("prev", seq - 1)
             .bind("role", role).bind("r", toRow).bind("c", toCol)
             .fetch().rowsUpdated()
+
+    fun getPlayersByRoom(roomId: Long): Mono<Pair<Long, Long>> =
+        db.sql("SELECT p1, p2 FROM matches WHERE room_id = :rid LIMIT 1")
+            .bind("rid", roomId)
+            .map { row -> (row.get("p1", java.lang.Long::class.java)!!.toLong()) to
+                    (row.get("p2", java.lang.Long::class.java)!!.toLong()) }
+            .one()
+
+
 }
